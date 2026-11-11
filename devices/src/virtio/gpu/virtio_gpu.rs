@@ -2025,7 +2025,8 @@ impl VirtioGpu {
             return;
         }
         let stride = resource.width as u64 * 4;
-        let start = transfer.offset;
+        // Same source rows rutabaga's transfer_2d reads: offset plus the rectangle's position.
+        let start = transfer.offset + transfer.y as u64 * stride + transfer.x as u64 * 4;
         let end = start + (transfer.h as u64 - 1) * stride + transfer.w as u64 * 4;
         let mut pos = 0u64;
         for (addr, len) in iovecs {
@@ -2043,6 +2044,25 @@ impl VirtioGpu {
             if pos >= end {
                 break;
             }
+        }
+    }
+
+    /// TRANSFER_TO_HOST_2D `offset` comes in two flavours. QEMU (and the Windows viogpudo driver
+    /// written against it) send the byte offset of the rectangle itself, `y * stride + x * 4`, and
+    /// read the source from there; rutabaga's 2D path treats `offset` as a base and adds the
+    /// rectangle's position again. A Windows guest therefore had every partial update read from
+    /// twice the distance: windows drawn shifted by their own position, the taskbar (near the
+    /// bottom, so read past the end of the framebuffer) black. An offset equal to the rectangle's
+    /// own position is that QEMU convention: make it relative (0) before rutabaga sees it.
+    pub fn rect_relative_2d_offset(&self, resource_id: u32, x: u32, y: u32, offset: u64) -> u64 {
+        let Some(resource) = self.resources.get(&resource_id) else {
+            return offset;
+        };
+        let rect_start = y as u64 * resource.width as u64 * 4 + x as u64 * 4;
+        if rect_start != 0 && offset == rect_start {
+            0
+        } else {
+            offset
         }
     }
 

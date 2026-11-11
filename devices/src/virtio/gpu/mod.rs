@@ -650,12 +650,16 @@ impl Frontend {
             }
             GpuCommand::TransferToHost2d(info) => {
                 let resource_id = info.resource_id.to_native();
+                let (x, y) = (info.r.x.to_native(), info.r.y.to_native());
+                let offset =
+                    self.virtio_gpu
+                        .rect_relative_2d_offset(resource_id, x, y, info.offset.to_native());
                 let transfer = Transfer3D::new_2d(
-                    info.r.x.to_native(),
-                    info.r.y.to_native(),
+                    x,
+                    y,
                     info.r.width.to_native(),
                     info.r.height.to_native(),
-                    info.offset.to_native(),
+                    offset,
                 );
                 self.virtio_gpu
                     .invalidate_transfer_source(mem, resource_id, &transfer);
