@@ -331,6 +331,8 @@ impl VirtioGpuResource {
 struct VirtioGpuScanout {
     width: u32,
     height: u32,
+    // Size set by the host with ResizeDisplay; reported by GET_DISPLAY_INFO.
+    host_size: Option<(u32, u32)>,
     scanout_type: SurfaceType,
     // If this scanout is a primary scanout, the scanout id.
     scanout_id: Option<u32>,
@@ -381,6 +383,7 @@ impl VirtioGpuScanout {
         VirtioGpuScanout {
             width,
             height,
+            host_size: None,
             scanout_type: SurfaceType::Scanout,
             scanout_id: Some(scanout_id),
             display_params: Some(params),
@@ -401,6 +404,7 @@ impl VirtioGpuScanout {
         VirtioGpuScanout {
             width: 64,
             height: 64,
+            host_size: None,
             scanout_type: SurfaceType::Cursor,
             scanout_id: None,
             display_params: None,
@@ -1396,7 +1400,12 @@ impl VirtioGpu {
                 self.scanouts
                     .get(&scanout_id)
                     .map_or((0, 0, false), |scanout| {
-                        (scanout.width, scanout.height, true)
+                        // A display the host resized advertises its new size until the guest
+                        // modesets to it; the scanout rect itself only changes on SET_SCANOUT.
+                        match scanout.host_size {
+                            Some((w, h)) => (w, h, true),
+                            None => (scanout.width, scanout.height, true),
+                        }
                     })
             })
             .collect::<Vec<_>>()
@@ -1510,8 +1519,7 @@ impl VirtioGpu {
                 if let Some(params) = scanout.display_params.as_mut() {
                     params.mode = DisplayMode::Windowed(width, height);
                 }
-                scanout.width = width;
-                scanout.height = height;
+                scanout.host_size = Some((width, height));
                 info!("gpu: display {} resized to {}x{} by the host", display_id, width, height);
                 self.scanouts_updated.store(true, Ordering::Relaxed);
                 GpuControlResult::DisplaysUpdated
