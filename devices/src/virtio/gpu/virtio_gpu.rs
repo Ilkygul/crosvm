@@ -1490,6 +1490,33 @@ impl VirtioGpu {
                 display_id,
                 mouse_mode,
             } => self.set_display_mouse_mode(display_id, mouse_mode),
+            GpuControlCommand::ResizeDisplay {
+                display_id,
+                width,
+                height,
+            } => self.resize_display(display_id, width, height),
+        }
+    }
+
+    /// Advertises a new size for a display: the size GET_DISPLAY_INFO reports and the preferred
+    /// mode in its EDID. The host surface follows once the guest modesets (create_surface sees the
+    /// new scanout rect), so nothing is reallocated here.
+    fn resize_display(&mut self, display_id: u32, width: u32, height: u32) -> GpuControlResult {
+        if width < 320 || height < 200 || width > 7680 || height > 4320 {
+            return GpuControlResult::ErrString(format!("unsupported size {}x{}", width, height));
+        }
+        match self.scanouts.get_mut(&display_id) {
+            Some(scanout) => {
+                if let Some(params) = scanout.display_params.as_mut() {
+                    params.mode = DisplayMode::Windowed(width, height);
+                }
+                scanout.width = width;
+                scanout.height = height;
+                info!("gpu: display {} resized to {}x{} by the host", display_id, width, height);
+                self.scanouts_updated.store(true, Ordering::Relaxed);
+                GpuControlResult::DisplaysUpdated
+            }
+            None => GpuControlResult::NoSuchDisplay { display_id },
         }
     }
 

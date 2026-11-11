@@ -134,6 +134,13 @@ pub enum GpuControlCommand {
         display_id: u32,
         mouse_mode: MouseMode,
     },
+    /// Changes the size a display advertises to the guest (DroidVM: follow the host window).
+    /// The guest is told through a display config-change event and picks the new mode itself.
+    ResizeDisplay {
+        display_id: u32,
+        width: u32,
+        height: u32,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -247,6 +254,22 @@ pub fn do_gpu_set_display_mouse_mode<T: AsRef<Path> + std::fmt::Debug>(
     let request = VmRequest::GpuCommand(GpuControlCommand::SetDisplayMouseMode {
         display_id,
         mouse_mode,
+    });
+    handle_request(&request, control_socket_path)
+        .map_err(|_| ModifyGpuError::SocketFailed)?
+        .into()
+}
+
+pub fn do_gpu_display_resize<T: AsRef<Path> + std::fmt::Debug>(
+    control_socket_path: T,
+    display_id: u32,
+    width: u32,
+    height: u32,
+) -> ModifyGpuResult {
+    let request = VmRequest::GpuCommand(GpuControlCommand::ResizeDisplay {
+        display_id,
+        width,
+        height,
     });
     handle_request(&request, control_socket_path)
         .map_err(|_| ModifyGpuError::SocketFailed)?

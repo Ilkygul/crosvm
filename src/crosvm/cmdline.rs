@@ -610,6 +610,26 @@ pub enum GpuSubCommand {
     ListDisplays(GpuListDisplaysCommand),
     RemoveDisplays(GpuRemoveDisplaysCommand),
     SetDisplayMouseMode(GpuSetDisplayMouseModeCommand),
+    ResizeDisplay(GpuResizeDisplayCommand),
+}
+
+#[cfg(feature = "gpu")]
+#[derive(FromArgs)]
+/// Changes the size a display advertises to the guest.
+#[argh(subcommand, name = "resize-display")]
+pub struct GpuResizeDisplayCommand {
+    #[argh(option, default = "0")]
+    /// display id
+    pub display_id: u32,
+    #[argh(option)]
+    /// width in pixels
+    pub width: u32,
+    #[argh(option)]
+    /// height in pixels
+    pub height: u32,
+    #[argh(positional, arg_name = "VM_SOCKET")]
+    /// VM Socket path
+    pub socket_path: String,
 }
 
 #[cfg(feature = "gpu")]

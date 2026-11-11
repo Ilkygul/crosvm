@@ -65,6 +65,8 @@ use vm_control::client::do_gpu_display_list;
 #[cfg(feature = "gpu")]
 use vm_control::client::do_gpu_display_remove;
 #[cfg(feature = "gpu")]
+use vm_control::client::do_gpu_display_resize;
+#[cfg(feature = "gpu")]
 use vm_control::client::do_gpu_set_display_mouse_mode;
 use vm_control::client::do_modify_battery;
 #[cfg(feature = "pci-hotplug")]
@@ -616,6 +618,9 @@ fn modify_gpu(cmd: cmdline::GpuCommand) -> std::result::Result<(), ()> {
         cmdline::GpuSubCommand::ListDisplays(cmd) => gpu_display_list(cmd),
         cmdline::GpuSubCommand::RemoveDisplays(cmd) => gpu_display_remove(cmd),
         cmdline::GpuSubCommand::SetDisplayMouseMode(cmd) => gpu_set_display_mouse_mode(cmd),
+        cmdline::GpuSubCommand::ResizeDisplay(cmd) => {
+            do_gpu_display_resize(cmd.socket_path, cmd.display_id, cmd.width, cmd.height)
+        }
     };
     match result {
         Ok(response) => {
