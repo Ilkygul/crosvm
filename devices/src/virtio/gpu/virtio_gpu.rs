@@ -2025,8 +2025,13 @@ impl VirtioGpu {
             return;
         }
         let stride = resource.width as u64 * 4;
-        // Same source rows rutabaga's transfer_2d reads: offset plus the rectangle's position.
-        let start = transfer.offset + transfer.y as u64 * stride + transfer.x as u64 * 4;
+        // The source rows the renderer reads: rutabaga's 2D component adds the rectangle's
+        // position to `offset`, virglrenderer/gfxstream start at `offset` itself.
+        let start = if self.rutabaga.uses_2d_component() {
+            transfer.offset + transfer.y as u64 * stride + transfer.x as u64 * 4
+        } else {
+            transfer.offset
+        };
         let end = start + (transfer.h as u64 - 1) * stride + transfer.w as u64 * 4;
         let mut pos = 0u64;
         for (addr, len) in iovecs {
@@ -2053,8 +2058,12 @@ impl VirtioGpu {
     /// rectangle's position again. A Windows guest therefore had every partial update read from
     /// twice the distance: windows drawn shifted by their own position, the taskbar (near the
     /// bottom, so read past the end of the framebuffer) black. An offset equal to the rectangle's
-    /// own position is that QEMU convention: make it relative (0) before rutabaga sees it.
+    /// own position is that QEMU convention: make it relative (0) before rutabaga's 2D component
+    /// sees it. virglrenderer and gfxstream read `offset` that way themselves: left alone there.
     pub fn rect_relative_2d_offset(&self, resource_id: u32, x: u32, y: u32, offset: u64) -> u64 {
+        if !self.rutabaga.uses_2d_component() {
+            return offset; // virglrenderer and gfxstream already read it the QEMU way
+        }
         let Some(resource) = self.resources.get(&resource_id) else {
             return offset;
         };

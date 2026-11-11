@@ -664,6 +664,13 @@ impl Rutabaga {
     }
 
     /// Gets the version and size for the capabilty set `index`.
+    /// True when resources are handled by the built-in 2D component, whose TRANSFER_TO_HOST
+    /// treats `offset` as a base the rectangle's position is added to (virglrenderer and
+    /// gfxstream follow QEMU: `offset` is where the rectangle starts).
+    pub fn uses_2d_component(&self) -> bool {
+        self.default_component == RutabagaComponentType::Rutabaga2D
+    }
+
     pub fn get_capset_info(&self, index: u32) -> RutabagaResult<(u32, u32, u32)> {
         let capset_info = self.capset_index_to_component_info(index)?;
 
