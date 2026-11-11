@@ -657,6 +657,8 @@ impl Frontend {
                     info.r.height.to_native(),
                     info.offset.to_native(),
                 );
+                self.virtio_gpu
+                    .invalidate_transfer_source(mem, resource_id, &transfer);
                 self.virtio_gpu.transfer_write(0, resource_id, transfer)
             }
             GpuCommand::ResourceAttachBacking(info) => {

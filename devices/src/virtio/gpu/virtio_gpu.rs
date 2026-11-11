@@ -1994,6 +1994,48 @@ impl VirtioGpu {
     }
 
     /// Copies data to host resource from the attached iovecs. Can also be used to flush caches.
+    /// Gunyah protected VM (DroidVM, Windows guests): the guest writes its framebuffer backing,
+    /// which lives in the restricted DMA pool, through a non-cacheable mapping while this process
+    /// maps the same pages cacheable. A line the host read earlier can then still hold old bytes
+    /// and TRANSFER_TO_HOST_2D copies them: stale 64-byte blocks on screen (the simplefb bridge
+    /// has the same problem and the same cure). Drop the host's lines for the source rows first.
+    pub fn invalidate_transfer_source(
+        &self,
+        mem: &GuestMemory,
+        resource_id: u32,
+        transfer: &Transfer3D,
+    ) {
+        let Some(resource) = self.resources.get(&resource_id) else {
+            return;
+        };
+        let Some(iovecs) = resource.backing_iovecs.as_ref() else {
+            return;
+        };
+        if transfer.w == 0 || transfer.h == 0 {
+            return;
+        }
+        let stride = resource.width as u64 * 4;
+        let start = transfer.offset;
+        let end = start + (transfer.h as u64 - 1) * stride + transfer.w as u64 * 4;
+        let mut pos = 0u64;
+        for (addr, len) in iovecs {
+            let len64 = *len as u64;
+            let s = start.max(pos);
+            let e = end.min(pos + len64);
+            if s < e {
+                if let Ok(host) =
+                    mem.get_host_address_range(addr.unchecked_add(s - pos), (e - s) as usize)
+                {
+                    invalidate_dcache_range(host as *const u8, (e - s) as usize);
+                }
+            }
+            pos += len64;
+            if pos >= end {
+                break;
+            }
+        }
+    }
+
     pub fn transfer_write(
         &mut self,
         ctx_id: u32,
@@ -2740,3 +2782,34 @@ impl VirtioGpu {
         self.rutabaga.resume().context("failed to resume rutabaga")
     }
 }
+
+/// `dc civac` over `[ptr, ptr + len)` so the next read comes from memory (see
+/// `invalidate_transfer_source`; same routine as the simplefb bridge's).
+#[cfg(target_arch = "aarch64")]
+fn invalidate_dcache_range(ptr: *const u8, len: usize) {
+    if len == 0 {
+        return;
+    }
+    let ctr: u64;
+    // SAFETY: reads a system register; no side effects.
+    unsafe {
+        std::arch::asm!("mrs {}, ctr_el0", out(reg) ctr, options(nomem, nostack, preserves_flags));
+    }
+    let line = 4usize << ((ctr >> 16) & 0xf);
+    let mut addr = (ptr as usize) & !(line - 1);
+    let end = (ptr as usize).saturating_add(len);
+    while addr < end {
+        // SAFETY: cache maintenance by VA on this process's own mapping; touches no data.
+        unsafe {
+            std::arch::asm!("dc civac, {}", in(reg) addr, options(nostack, preserves_flags));
+        }
+        addr += line;
+    }
+    // SAFETY: a barrier; no memory operands.
+    unsafe {
+        std::arch::asm!("dsb ish", options(nostack, preserves_flags));
+    }
+}
+
+#[cfg(not(target_arch = "aarch64"))]
+fn invalidate_dcache_range(_ptr: *const u8, _len: usize) {}
