@@ -619,7 +619,7 @@ fn modify_gpu(cmd: cmdline::GpuCommand) -> std::result::Result<(), ()> {
         cmdline::GpuSubCommand::RemoveDisplays(cmd) => gpu_display_remove(cmd),
         cmdline::GpuSubCommand::SetDisplayMouseMode(cmd) => gpu_set_display_mouse_mode(cmd),
         cmdline::GpuSubCommand::ResizeDisplay(cmd) => {
-            do_gpu_display_resize(cmd.socket_path, cmd.display_id, cmd.width, cmd.height)
+            do_gpu_display_resize(cmd.socket_path, cmd.display_id, cmd.width, cmd.height, cmd.dpi)
         }
     };
     match result {

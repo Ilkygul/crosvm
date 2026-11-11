@@ -627,6 +627,9 @@ pub struct GpuResizeDisplayCommand {
     #[argh(option)]
     /// height in pixels
     pub height: u32,
+    #[argh(option)]
+    /// pixel density for the EDID physical size
+    pub dpi: Option<u32>,
     #[argh(positional, arg_name = "VM_SOCKET")]
     /// VM Socket path
     pub socket_path: String,

@@ -1503,14 +1503,21 @@ impl VirtioGpu {
                 display_id,
                 width,
                 height,
-            } => self.resize_display(display_id, width, height),
+                dpi,
+            } => self.resize_display(display_id, width, height, dpi),
         }
     }
 
     /// Advertises a new size for a display: the size GET_DISPLAY_INFO reports and the preferred
     /// mode in its EDID. The host surface follows once the guest modesets (create_surface sees the
     /// new scanout rect), so nothing is reallocated here.
-    fn resize_display(&mut self, display_id: u32, width: u32, height: u32) -> GpuControlResult {
+    fn resize_display(
+        &mut self,
+        display_id: u32,
+        width: u32,
+        height: u32,
+        dpi: Option<u32>,
+    ) -> GpuControlResult {
         if width < 320 || height < 200 || width > 7680 || height > 4320 {
             return GpuControlResult::ErrString(format!("unsupported size {}x{}", width, height));
         }
@@ -1518,6 +1525,9 @@ impl VirtioGpu {
             Some(scanout) => {
                 if let Some(params) = scanout.display_params.as_mut() {
                     params.mode = DisplayMode::Windowed(width, height);
+                    if let Some(d) = dpi.filter(|d| (48..=1200).contains(d)) {
+                        params.dpi = Some((d, d));
+                    }
                 }
                 scanout.host_size = Some((width, height));
                 info!("gpu: display {} resized to {}x{} by the host", display_id, width, height);

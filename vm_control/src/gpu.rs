@@ -140,6 +140,9 @@ pub enum GpuControlCommand {
         display_id: u32,
         width: u32,
         height: u32,
+        /// Pixel density for the EDID's physical size (guests derive their UI scale from it).
+        #[serde(default)]
+        dpi: Option<u32>,
     },
 }
 
@@ -265,11 +268,13 @@ pub fn do_gpu_display_resize<T: AsRef<Path> + std::fmt::Debug>(
     display_id: u32,
     width: u32,
     height: u32,
+    dpi: Option<u32>,
 ) -> ModifyGpuResult {
     let request = VmRequest::GpuCommand(GpuControlCommand::ResizeDisplay {
         display_id,
         width,
         height,
+        dpi,
     });
     handle_request(&request, control_socket_path)
         .map_err(|_| ModifyGpuError::SocketFailed)?
